@@ -3,7 +3,7 @@ import { resolve, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { builtinModules } from 'node:module'
 const project = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const root = resolve(project, '../..')
+const root = process.env.NONS_ROOT ? resolve(process.env.NONS_ROOT) : resolve(project, '../..')
 const { build } = await import('esbuild')
 const { componentize } = await import(
   pathToFileURL(
@@ -84,3 +84,4 @@ for (const dependency of dependencies.sort()) {
 }
 await writeFile(resolve(destination, 'LICENSE.dependencies'), licenses.join('\n\n'))
 console.log(`Built audio provider: ${component}`)
+
