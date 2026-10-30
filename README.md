@@ -33,15 +33,18 @@ GD音乐台只用于按已有平台歌曲 ID 获取替换音源，接入自动�
 ## 构建与验证
 
 ```powershell
-npm ci --prefix adapters/gdstudio
-npm ci --prefix packages/wasm-crypto --include=dev
-node adapters/gdstudio/scripts/build.mjs
-node --test adapters/gdstudio/tests/*.test.mjs
+npm ci --prefix .
+npm ci --prefix ..\..\Nons\packages\wasm-crypto --include=dev
+$env:NONS_ROOT = '..\..\Nons'
+node scripts/build.mjs
+node --test tests/*.test.mjs
 # 受控 Host 预算验收，不访问网络
-./scripts/native.ps1 -Task test -ExtraArgs @('--lib','--locked','gdstudio_component_resolves_under_native_host_budget','--','--ignored','--nocapture')
+..\..\Nons\scripts\native.ps1 -Task test -ExtraArgs @('--lib','--locked','gdstudio_component_resolves_under_native_host_budget','--','--ignored','--nocapture')
 # 可选实网取址：已知网易云 ID 347230，先读平台元数据，不搜索 GD
-./scripts/native.ps1 -Task test -ExtraArgs @('--lib','--locked','gdstudio_component_live_resource','--','--ignored','--nocapture')
+..\..\Nons\scripts\native.ps1 -Task test -ExtraArgs @('--lib','--locked','gdstudio_component_live_resource','--','--ignored','--nocapture')
 ```
+
+推送到 `main` 或提交 Pull Request 会运行 GitHub Actions；推送 `v*` 标签会在测试通过后发布可直接安装的 ZIP（包含 `adapter.component.wasm`、描述符和许可文件）及 SHA-256 校验文件。
 
 构建更新随包 Component、manifest 和依赖许可；安装后无需 Node、Python 或独立服务进程。在设置 → 音乐适配器独立启停。
 
