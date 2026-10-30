@@ -51,3 +51,7 @@ node --test tests/*.test.mjs
 回归覆盖搜索能力为空、十个平台搜索调用零 HTTP、平台 ID 取址映射、签名、MP3／FLAC 校验、音质降级、网站头隔离及未授权地址。删除了原有批量搜索探测脚本。2026-10-16 移除搜索之前的实网样本中，网易云、JOOX、酷我、TIDAL、Embeat、QQ音乐曾取得通过校验的资源；其余平台仍有空资源、网络或格式／时长校验失败。该历史样本不保证后续可用性。本次验收使用受控测试，避免继续消耗上游额度；没有执行扬声器播放和跨平台原生构建。
 
 服务署名：GD音乐台（music.gdstudio.xyz／music.gdstudio.org）。服务政策和依赖许可包含在构建产物中，不分发 GD 服务端代码。独立契约和生命周期见[资源适配器说明](../../docs/resource-providers.md)。
+
+## 项目许可证
+
+本项目代码采用 [MIT](License)。GD 服务政策和构建依赖的原始条款保存在产物的 `licenses/dependencies/License` 中。

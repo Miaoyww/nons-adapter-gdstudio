@@ -82,6 +82,9 @@ for (const dependency of dependencies.sort()) {
       licenses.push(await readFile(resolve(directory, name), 'utf8'))
   }
 }
-await writeFile(resolve(destination, 'LICENSE.dependencies'), licenses.join('\n\n'))
+await mkdir(resolve(destination, 'licenses/dependencies'), { recursive: true })
+await writeFile(resolve(destination, 'licenses/dependencies/License'), licenses.join('\n\n'))
 console.log(`Built audio provider: ${component}`)
 
+
+await writeFile(resolve(destination, 'License'), await readFile(resolve(project, 'License')))

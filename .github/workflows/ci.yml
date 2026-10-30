@@ -45,7 +45,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           mkdir -p workspace/out
-          (cd workspace/app/src-tauri/bundled-adapters && zip -qr "../../../out/nsa-gdstudio-${GITHUB_REF_NAME}.zip" gdstudio)
+          test -f workspace/app/src-tauri/bundled-adapters/gdstudio/manifest.json
+          test -f workspace/app/src-tauri/bundled-adapters/gdstudio/License
+          (cd workspace/app/src-tauri/bundled-adapters/gdstudio && zip -qr "../../../../out/gdstudio-${GITHUB_REF_NAME}.zip" .)
           (cd workspace/out && sha256sum *.zip > SHA256SUMS.txt)
       - uses: actions/upload-artifact@v4
         if: startsWith(github.ref, 'refs/tags/v')
