@@ -11,12 +11,15 @@ test('website protocol vectors distinguish the modified digest and encode Unicod
   assert.notEqual(sign('Hello', '1792158850'), sign('Hello', '1792158849'))
   assert.throws(() => sign('Hello', '<html>'))
   assert.match(sign('雪'.repeat(1024), '1792158848'), /^[A-F0-9]{8}$/)
+  assert.equal(sign('签名'.repeat(5000), '1792158848'), '137DC470')
 })
 
 test('all ten platforms resolve opaque IDs without search', () => {
   for (const [platform, upstream] of Object.entries(platforms)) {
     const target = apiRequest({
-      track: { reference: { source: platform, kind: 'track', id: 'Opaque+/雪' } },
+      track: {
+        reference: { source: platform, kind: 'track', id: 'Opaque+/雪' }
+      },
       preferredQuality: 'lossless',
       allowDowngrade: false
     })
@@ -35,7 +38,12 @@ test('all ten platforms resolve opaque IDs without search', () => {
     { code: 'invalidData' }
   )
   assert.throws(
-    () => decodeResponse(200, { url: 'https://music-proxy.gdstudio.org/pending', br: -1, size: 0 }),
+    () =>
+      decodeResponse(200, {
+        url: 'https://music-proxy.gdstudio.org/pending',
+        br: -1,
+        size: 0
+      }),
     { code: 'notFound' }
   )
 })

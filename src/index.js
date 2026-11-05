@@ -70,11 +70,7 @@ function apiJson(target) {
   check(time)
   let signature
   try {
-    signature = sign(
-      target.payload,
-      new TextDecoder().decode(time.body).trim(),
-      new URL(base).hostname
-    )
+    signature = sign(target.payload, new TextDecoder().decode(time.body).trim(), new URL(base).hostname)
   } catch {
     fail('invalidData', 'server-time')
   }
@@ -88,15 +84,9 @@ async function resolveResource(input) {
   // Only the selected BVID is hydrated; no per-row search-page requests.
   if (!duration && input.track.reference.source === 'bilibili') {
     const detail = json(
-      request(
-        `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(input.track.reference.id)}`
-      ),
+      request(`https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(input.track.reference.id)}`)
     )
-    if (
-      detail.code !== 0 ||
-      detail.data?.bvid !== input.track.reference.id ||
-      detail.data.videos !== 1
-    )
+    if (detail.code !== 0 || detail.data?.bvid !== input.track.reference.id || detail.data.videos !== 1)
       fail('notFound', 'bilibili-detail')
     duration = detail.data.duration * 1000
   }
@@ -105,30 +95,33 @@ async function resolveResource(input) {
     url = response.url
     check(response)
     const range = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(headersOf(response)['content-range'] ?? '')
+    const rangeStart = Number(range?.[1])
+    const rangeEnd = Number(range?.[2])
+    const total = Number(range?.[3])
     if (
       response.status !== 206 ||
       !range ||
-      Number(range[1]) !== start ||
-      Number(range[2]) !== Math.min(end, Number(range[3]) - 1) ||
-      Number(range[2]) - start + 1 !== response.body.length
+      rangeStart !== start ||
+      rangeStart > rangeEnd ||
+      rangeEnd >= total ||
+      rangeEnd - rangeStart + 1 !== response.body.length
     )
       fail('invalidData', 'audio-range')
-    return { size: Number(range[3]), bytes: response.body }
+    return {
+      size: total,
+      start: rangeStart,
+      end: rangeEnd,
+      bytes: response.body
+    }
   }
-  const { metadata } = await inspectRemoteAudio(
-    read,
-    duration,
-    target.quality,
-    input.allowDowngrade
-  )
+  const { metadata } = await inspectRemoteAudio(read, duration, target.quality, input.allowDowngrade)
   return { metadata, url, headers: [] }
 }
 export async function call(method, args) {
   try {
     let data
     if (method === 'music.resource-descriptor') data = manifest.resourceProvider
-    else if (method === 'music.resolve-resource')
-      data = await resolveResource(JSON.parse(args).request)
+    else if (method === 'music.resolve-resource') data = await resolveResource(JSON.parse(args).request)
     else fail('unsupported')
     const reply = JSON.stringify({ status: 'ok', data })
     return reply
@@ -154,7 +147,10 @@ export async function call(method, args) {
     ])
     return JSON.stringify({
       status: 'error',
-      data: { code: codes.has(error.code) ? error.code : 'internal', retryAfterMs: null }
+      data: {
+        code: codes.has(error.code) ? error.code : 'internal',
+        retryAfterMs: null
+      }
     })
   }
 }

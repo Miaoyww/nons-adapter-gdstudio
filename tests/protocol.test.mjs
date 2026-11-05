@@ -8,10 +8,10 @@ async function inspectAudio(prefix, size, duration, quality, downgrade) {
     async (start, end) => {
       const bytes = new Uint8Array(Math.min(end + 1, size) - start)
       if (start === 0) {
-        if (prefix.length > 65536) return { bytes: prefix, size }
+        if (prefix.length > 65536) return { start, end, bytes: prefix, size }
         bytes.set(prefix)
       }
-      return { bytes, size }
+      return { start, end, bytes, size }
     },
     duration,
     quality,
@@ -38,46 +38,48 @@ test('platform IDs stay opaque and unsupported quality cannot silently downgrade
   )
   assert.equal(apiRequest({ ...request, preferredQuality: 'lossless' }).quality, 'lossless')
   assert.equal(
-    apiRequest({ ...request, preferredQuality: 'lossless', allowDowngrade: true }).quality,
+    apiRequest({
+      ...request,
+      preferredQuality: 'lossless',
+      allowDowngrade: true
+    }).quality,
     'lossless'
   )
 })
 test('server failures and preview responses remain errors', () => {
   assert.throws(() => decodeResponse(503, null), { code: 'network' })
   assert.throws(() => decodeResponse(429, null), { code: 'rateLimited' })
-  assert.throws(() => decodeResponse(200, { code: 0, url: 'https://example.com', preview: true }), {
-    code: 'permissionDenied'
-  })
+  assert.throws(
+    () =>
+      decodeResponse(200, {
+        code: 0,
+        url: 'https://example.com',
+        preview: true
+      }),
+    {
+      code: 'permissionDenied'
+    }
+  )
 })
 test('mature parser verifies bitrate and full duration from bounded MPEG prefix', async () => {
   const high = sample()
-  const result = await inspectAudio(
-    high.prefix,
-    high.total,
-    180000,
-    '320k',
-    false,
-    new Uint8Array(512)
-  )
+  const result = await inspectAudio(high.prefix, high.total, 180000, '320k', false, new Uint8Array(512))
   assert.equal(result.actualQuality, '320k')
   assert.equal(result.extent.kind, 'full')
   const low = sample(128)
-  await assert.rejects(
-    inspectAudio(low.prefix, low.total, 180000, '320k', false, new Uint8Array(512)),
-    { code: 'permissionDenied' }
-  )
+  await assert.rejects(inspectAudio(low.prefix, low.total, 180000, '320k', false, new Uint8Array(512)), {
+    code: 'permissionDenied'
+  })
   assert.equal(
-    (await inspectAudio(low.prefix, low.total, 180000, '320k', true, new Uint8Array(512)))
-      .actualQuality,
+    (await inspectAudio(low.prefix, low.total, 180000, '320k', true, new Uint8Array(512))).actualQuality,
     '128k'
   )
 })
 test('short samples, unknown duration, invalid bytes and oversized probes fail closed', async () => {
   const short = sample(320, 30)
-  await assert.rejects(
-    inspectAudio(short.prefix, short.total, 180000, '320k', true, new Uint8Array(512)),
-    { code: 'permissionDenied' }
-  )
+  await assert.rejects(inspectAudio(short.prefix, short.total, 180000, '320k', true, new Uint8Array(512)), {
+    code: 'permissionDenied'
+  })
   await assert.rejects(inspectAudio(short.prefix, short.total, 0, '320k', true), {
     code: 'permissionDenied'
   })
