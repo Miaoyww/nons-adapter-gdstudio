@@ -24,7 +24,7 @@ const result = await build({
   format: 'esm',
   target: 'es2022',
   metafile: true,
-  external: ['nons:host/transport@1.0.0', 'nons:plugin/host@1.0.0'],
+  external: ['nons:host/transport@1.1.0', 'nons:plugin/host@1.0.0'],
   define: { 'process.env.DEBUG': '""' }
 })
 const builtins = new Set(builtinModules.flatMap((s) => [s, `node:${s}`]))
@@ -33,13 +33,28 @@ for (const input of Object.values(result.metafile.inputs))
     if (builtins.has(item.path)) throw new Error(`Node builtin in guest: ${item.path}`)
 const pluginWit = await readFile(resolve(root, 'plugins/wit/plugin.wit'), 'utf8')
 const hostWit = await readFile(resolve(root, 'packages/adapter-host/wit/host.wit'), 'utf8')
-const hostInterface = hostWit.slice(
+let hostInterface = hostWit.slice(
   hostWit.indexOf('interface transport'),
   hostWit.indexOf('\nworld host')
 )
+if (!hostInterface.includes('follow-redirects'))
+  hostInterface = hostInterface.replace(
+    /(timeout-ms: u32,\r?\n)/,
+    '$1        follow-redirects: bool,\n'
+  )
+if (!/record response \{[^}]*\burl: string\b/.test(hostInterface))
+  hostInterface = hostInterface.replace(
+    /record response \{([^}]*)\}/,
+    (_, fields) => `record response {${fields.trimEnd()}, url: string }`
+  )
+if (
+  !hostInterface.includes('follow-redirects') ||
+  !/record response \{[^}]*\burl: string\b/.test(hostInterface)
+)
+  throw new Error('Host WIT is missing transport 1.1 fields')
 const witWorld =
-  pluginWit.replace('  import host;', '  import host;\n  import nons:host/transport@1.0.0;') +
-  `\npackage nons:host@1.0.0 {\n${hostInterface}\n}`
+  pluginWit.replace('  import host;', '  import host;\n  import nons:host/transport@1.1.0;') +
+  `\npackage nons:host@1.1.0 {\n${hostInterface}\n}`
 const js = await componentize({
   sourcePath: resolve(output, 'guest.js'),
   witWorld,

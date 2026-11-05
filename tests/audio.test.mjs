@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { inspectRemoteAudio } from '../src/audio.js'
+import { diagnosticId, inspectRemoteAudio } from '../src/audio.js'
 
 function flac(bits = 16, seconds = 180) {
   const bytes = new Uint8Array(131072)
@@ -53,4 +53,9 @@ test('probe rejects oversized resources and inconsistent range totals', async ()
     ),
     { code: 'invalidData' }
   )
+})
+test('diagnostic ids fit the Host class syntax and length', () => {
+  assert.equal(diagnosticId('audio-M4A/isom-ALAC-duration'), 'audio-M4A-isom-ALAC-duration')
+  assert.equal(diagnosticId('  parser error / 123  '), 'parser-error-123')
+  assert.equal(diagnosticId('x'.repeat(100)).length, 64)
 })

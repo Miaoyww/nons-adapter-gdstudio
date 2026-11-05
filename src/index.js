@@ -1,4 +1,4 @@
-import { httpRequest } from 'nons:host/transport@1.0.0'
+import { httpRequest } from 'nons:host/transport@1.1.0'
 import { call as hostCall } from 'nons:plugin/host@1.0.0'
 import manifest from '../manifest.json' with { type: 'json' }
 import { apiRequest, decodeResponse, fail } from './protocol.js'
@@ -16,45 +16,37 @@ function allowed(input) {
   } catch {
     fail('invalidData')
   }
-  const host = url.hostname
-  if (
-    !['http:', 'https:'].includes(url.protocol) ||
-    url.username ||
-    url.password ||
-    url.port ||
-    url.hash ||
-    !manifest.permissions.httpHosts.some(
-      (rule) =>
-        rule === host ||
-        (rule.startsWith('*.') && host.endsWith(rule.slice(1)) && host.length > rule.length - 1)
-    )
-  )
-    fail('permissionDenied')
+  if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) fail('permissionDenied')
   return url.href
 }
-function request(url, headers = []) {
+function request(url, headers = [], timeoutMs = 0) {
   try {
+    const target = allowed(url)
     const response = httpRequest({
-      url: allowed(url),
+      url: target,
       method: 'GET',
       headers,
       body: new Uint8Array(),
-      timeoutMs: 4000
+      timeoutMs,
+      followRedirects: true
     })
-    return { ...response, body: new Uint8Array(response.body) }
+    return {
+      ...response,
+      url: allowed(response.url ?? target),
+      body: new Uint8Array(response.body)
+    }
   } catch (error) {
     if (error.code) throw error
     fail('network')
   }
 }
-function check(response, maxBytes) {
+function check(response) {
   if (response.status === 429) fail('rateLimited')
   if (response.status === 401 || response.status === 403) fail('permissionDenied', 'upstream-auth')
   if (response.status < 200 || response.status >= 300) fail('network')
-  if (response.body.length > maxBytes) fail('invalidData')
 }
-function json(response, maxBytes) {
-  check(response, maxBytes)
+function json(response) {
+  check(response)
   try {
     return JSON.parse(new TextDecoder().decode(response.body))
   } catch {
@@ -75,7 +67,7 @@ function apiJson(target) {
   ]
   // Refresh per request: the signature's time bucket lasts only ten seconds.
   const time = request(`${base}time`, headers)
-  check(time, 32)
+  check(time)
   let signature
   try {
     signature = sign(
@@ -86,7 +78,7 @@ function apiJson(target) {
   } catch {
     fail('invalidData', 'server-time')
   }
-  return json(request(`${target.url}&s=${signature}`, headers), 65536)
+  return json(request(`${target.url}&s=${signature}`, headers))
 }
 async function resolveResource(input) {
   const target = apiRequest(input)
@@ -99,7 +91,6 @@ async function resolveResource(input) {
       request(
         `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(input.track.reference.id)}`
       ),
-      65536
     )
     if (
       detail.code !== 0 ||
@@ -110,27 +101,19 @@ async function resolveResource(input) {
     duration = detail.data.duration * 1000
   }
   const read = async (start, end) => {
-    for (let hop = 0; hop <= 3; hop++) {
-      const response = request(url, [{ name: 'Range', value: `bytes=${start}-${end}` }])
-      if ([301, 302, 303, 307, 308].includes(response.status)) {
-        const location = headersOf(response).location
-        if (!location || hop === 3) fail('network')
-        url = allowed(new URL(location, url).href)
-        continue
-      }
-      check(response, 65536)
-      const range = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(headersOf(response)['content-range'] ?? '')
-      if (
-        response.status !== 206 ||
-        !range ||
-        Number(range[1]) !== start ||
-        Number(range[2]) !== Math.min(end, Number(range[3]) - 1) ||
-        Number(range[2]) - start + 1 !== response.body.length
-      )
-        fail('invalidData', 'audio-range')
-      return { size: Number(range[3]), bytes: response.body }
-    }
-    fail('network')
+    const response = request(url, [{ name: 'Range', value: `bytes=${start}-${end}` }])
+    url = response.url
+    check(response)
+    const range = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(headersOf(response)['content-range'] ?? '')
+    if (
+      response.status !== 206 ||
+      !range ||
+      Number(range[1]) !== start ||
+      Number(range[2]) !== Math.min(end, Number(range[3]) - 1) ||
+      Number(range[2]) - start + 1 !== response.body.length
+    )
+      fail('invalidData', 'audio-range')
+    return { size: Number(range[3]), bytes: response.body }
   }
   const { metadata } = await inspectRemoteAudio(
     read,
@@ -148,7 +131,6 @@ export async function call(method, args) {
       data = await resolveResource(JSON.parse(args).request)
     else fail('unsupported')
     const reply = JSON.stringify({ status: 'ok', data })
-    if (new TextEncoder().encode(reply).length > 65536) fail('invalidData')
     return reply
   } catch (error) {
     try {

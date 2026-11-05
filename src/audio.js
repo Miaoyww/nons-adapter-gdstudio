@@ -2,6 +2,12 @@ import { parseFromTokenizer } from 'music-metadata'
 import { fromBuffer } from 'strtok3/core'
 import { fail } from './protocol.js'
 
+export const diagnosticId = (value) =>
+  value
+    .replace(/[^A-Za-z0-9.-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+
 // Random access lets the mature parser skip artwork/media blocks and read a
 // trailing MP4 moov without downloading the song or allocating its full length.
 export async function inspectRemoteAudio(read, expectedDuration, requested, downgrade) {
@@ -55,7 +61,9 @@ export async function inspectRemoteAudio(read, expectedDuration, requested, down
     if (error.code) throw error
     fail(
       'invalidData',
-      `parser-${error.name}${Number.isSafeInteger(error.requestedSize) ? `-${error.requestedSize}` : ''}`
+      diagnosticId(
+        `parser-${error.name}${Number.isSafeInteger(error.requestedSize) ? `-${error.requestedSize}` : ''}`
+      )
     )
   }
   if (
@@ -70,9 +78,8 @@ export async function inspectRemoteAudio(read, expectedDuration, requested, down
   )
     fail(
       'invalidData',
-      `audio-${format.container}-${format.codec}-${format.duration ? 'duration' : 'no-duration'}`.slice(
-        0,
-        120
+      diagnosticId(
+        `audio-${format.container}-${format.codec}-${format.duration ? 'duration' : 'no-duration'}`
       )
     )
   if (
